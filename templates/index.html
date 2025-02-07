@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Repository Search</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            padding: 40px;
+        }
+        .container {
+            max-width: 700px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            margin: auto;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+        }
+        button {
+            padding: 10px;
+            border-radius: 50%;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result-container {
+            margin-top: 20px;
+            text-align: left;
+        }
+        .repo-card {
+            background: #fff;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease-in-out;
+        }
+        .repo-card:hover {
+            transform: translateY(-5px);
+        }
+        .repo-card a {
+            text-decoration: none;
+            font-weight: bold;
+            color: #007bff;
+            font-size: 18px;
+        }
+        .repo-card p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        .repo-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            color: #555;
+        }
+        .repo-meta i {
+            margin-right: 5px;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            margin-top: 15px;
+            gap: 10px;
+        }
+        .pagination button {
+            padding: 8px 15px;
+            border: none;
+            background: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .pagination button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GitHub Repository Search</h1>
+        <div class="search-box">
+            <input type="text" id="username" placeholder="Enter GitHub Username..." required>
+            <button id="searchBtn"><i class="fas fa-search"></i></button>
+        </div>
+        <div class="search-box">
+            <input type="text" id="repoSearch" placeholder="Enter username/repository..." required>
+            <button onclick="fetchRepoDetails()"><i class="fas fa-folder-open"></i></button>
+        </div>
+
+        <p id="errorMessage" class="error-message"></p>
+        <div class="result-container" id="repoContainer"></div>
+        <div class="pagination">
+            <button id="prevPage" disabled>← Previous</button>
+            <button id="nextPage" disabled>Next →</button>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let reposPerPage = 5;
+        let repositories = [];
+
+        document.getElementById("searchBtn").addEventListener("click", fetchRepos);
+        document.getElementById("username").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                fetchRepos();
+            }
+        });
+        document.getElementById("prevPage").addEventListener("click", function() {
+            if (currentPage > 1) {
+                currentPage--;
+                displayRepos();
+            }
+        });
+        document.getElementById("nextPage").addEventListener("click", function() {
+            if (currentPage * reposPerPage < repositories.length) {
+                currentPage++;
+                displayRepos();
+            }
+        });
+
+        document.addEventListener("keydown", function(event) {
+            if (event.key === "ArrowLeft" && currentPage > 1) {
+                currentPage--;
+                displayRepos();
+            }
+            if (event.key === "ArrowRight" && currentPage * reposPerPage < repositories.length) {
+                currentPage++;
+                displayRepos();
+            }
+        });
+        function fetchRepos() {
+    let username = document.getElementById("username").value.trim();
+    let repoContainer = document.getElementById("repoContainer");
+
+    if (!username) {
+        Swal.fire({
+            icon: "warning",
+            title: "Oops...",
+            text: "⚠ Please enter a GitHub username.",
+        });
+        return;
+    }
+
+    repoContainer.innerHTML = "🔍 Searching...";
+
+    fetch(`/search?username=${username}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: `❌ ${data.error}`,
+                });
+                return;
+            }
+            repositories = data;
+            currentPage = 1;
+            displayRepos();
+        })
+        .catch(error => {
+            Swal.fire({
+                icon: "error",
+                title: "Error",
+                text: "❌ Failed to fetch data.",
+            });
+            console.error("Error:", error);
+        });
+}
+
+
+        function displayRepos() {
+            let repoContainer = document.getElementById("repoContainer");
+            repoContainer.innerHTML = "";
+            let start = (currentPage - 1) * reposPerPage;
+            let end = start + reposPerPage;
+            let pageRepos = repositories.slice(start, end);
+
+            pageRepos.forEach(repo => {
+                let repoCard = document.createElement("div");
+                repoCard.classList.add("repo-card");
+
+                repoCard.innerHTML = `
+                    <a href="${repo.html_url}" target="_blank">${repo.name}</a>
+                    <p>${repo.description || "No description available."}</p>
+                    <div class="repo-meta">
+                        <span><i class="fas fa-star"></i> ${repo.stargazers_count}</span>
+                        <span><i class="fas fa-code-branch"></i> ${repo.forks_count}</span>
+                        <span><i class="fas fa-book"></i> ${repo.language || "Unknown"}</span>
+                    </div>
+                `;
+
+                repoContainer.appendChild(repoCard);
+            });
+
+            document.getElementById("prevPage").disabled = currentPage === 1;
+            document.getElementById("nextPage").disabled = currentPage * reposPerPage >= repositories.length;
+        }
+    </script>
+        <script>
+            function fetchRepos() {
+                let username = document.getElementById("username").value.trim();
+                if (!username) {
+                    Swal.fire("Oops!", "Please enter a GitHub username.", "warning");
+                    return;
+                }
+    
+                fetch(`/search?username=${username}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            Swal.fire("Error", data.error, "error");
+                            return;
+                        }
+                        document.getElementById("repoContainer").innerHTML = data.map(repo => `
+                            <p><a href="${repo.html_url}" target="_blank">${repo.name}</a></p>
+                        `).join("");
+                    })
+                    .catch(() => Swal.fire("Error", "Failed to fetch data.", "error"));
+            }
+    
+            function fetchRepoDetails() {
+                let repoName = document.getElementById("repoSearch").value.trim();
+                if (!repoName.includes("/")) {
+                    Swal.fire("Oops!", "Enter a valid 'username/repository' format.", "warning");
+                    return;
+                }
+    
+                fetch(`/repo?repo=${repoName}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            Swal.fire("Error", data.error, "error");
+                            return;
+                        }
+                        Swal.fire({
+                            title: data.name,
+                            html: `
+                                <p><a href="${data.html_url}" target="_blank">Repository Link</a></p>
+                                <p>Description: ${data.description || "No description"}</p>
+                                <p>⭐ Stars: ${data.stargazers_count}</p>
+                                <p>🍴 Forks: ${data.forks_count}</p>
+                                <p>📜 License: ${data.license}</p>
+                            `,
+                            icon: "info"
+                        });
+                    })
+                    .catch(() => Swal.fire("Error", "Failed to fetch data.", "error"));
+            }
+        </script>
+</body>
+</html>
